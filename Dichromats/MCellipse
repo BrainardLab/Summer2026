@@ -1,0 +1,109 @@
+import numpy as np
+import matplotlib.pyplot as plt
+import pandas as pd
+from scipy.optimize import minimize
+
+#=====================================================================
+# 1. THE FITTING ROUTINE 
+#=====================================================================
+# Added 'prefix' argument (e.g., 'ellipse1', 'ellipse2') to identify columns dynamically
+
+def fit_discrimination_ellipse_from_df(df, center, prefix):
+    cx, cy = center
+    
+    # Correctly dynamically select the right columns using f-strings
+    x_coords = df[f'{prefix}_x'].to_numpy()
+    y_coords = df[f'{prefix}_y'].to_numpy()
+    
+    # Shift relative to the fixed center
+    dx = x_coords - cx
+    dy = y_coords - cy
+    
+    # Convert to polar coordinates (r, phi)
+    r_data = np.sqrt(dx**2 + dy**2)
+    phi_data = np.arctan2(dy, dx)
+    
+    def ellipse_radius(phi, a, b, theta):
+        cos_part = np.cos(phi - theta)
+        sin_part = np.sin(phi - theta)
+        return 1.0 / np.sqrt((cos_part / a)**2 + (sin_part / b)**2)
+    
+    def objective(params):
+        a, b, theta = params
+        r_ellipse = ellipse_radius(phi_data, a, b, theta)
+        return np.sum((np.log(r_data) - np.log(r_ellipse))**2)
+    
+    initial_guess = [np.mean(r_data), np.mean(r_data), 0.0]
+    bounds = [(1e-6, None), (1e-6, None), (-np.pi, np.pi)]
+    
+    result = minimize(objective, initial_guess, bounds=bounds, method='L-BFGS-B')
+    return result.x
+
+def generate_ellipse_xy(center, fit_a, fit_b, fit_angle):
+    ellipse_angles = np.linspace(0, 2 * np.pi, 200)
+    cos_e = np.cos(ellipse_angles - fit_angle)
+    sin_e = np.sin(ellipse_angles - fit_angle)
+    fitted_radii = 1.0 / np.sqrt((cos_e / fit_a)**2 + (sin_e / fit_b)**2)
+    return center[0] + fitted_radii * np.cos(ellipse_angles), center[1] + fitted_radii * np.sin(ellipse_angles)
+
+# =====================================================================
+# 2. LOADING FILES & AUTO-DETECTING CENTERS
+# =====================================================================
+file_path_1 = "C:/Users/kara8/Downloads/1994_participant_data - subject mc.csv"
+file_path_2 = "C:/Users/kara8/Downloads/1994_participant_data - subject mc.csv"
+file_path_3 = "C:/Users/kara8/Downloads/1994_participant_data - subject mc.csv"
+
+df1 = pd.read_csv(file_path_1)
+df2 = pd.read_csv(file_path_2)
+df3 = pd.read_csv(file_path_3)
+
+# AUTO-DETECT CENTER: Corrected df1 typos so each center averages its matching sheet
+bg_center1 = (df1['center1_x'].mean(), df1['center1_y'].mean())
+bg_center2 = (df2['center2_x'].mean(), df2['center2_y'].mean())
+bg_center3 = (df3['center3_x'].mean(), df3['center3_y'].mean())
+
+# Fit Ellipses passing the exact column prefix names
+fit_a1, fit_b1, fit_angle1 = fit_discrimination_ellipse_from_df(df1, bg_center1, 'ellipse1')
+fit_a2, fit_b2, fit_angle2 = fit_discrimination_ellipse_from_df(df2, bg_center2, 'ellipse2')
+fit_a3, fit_b3, fit_angle3 = fit_discrimination_ellipse_from_df(df3, bg_center3, 'ellipse3')
+
+print("--- Auto-Detected Centers ---")
+print(f"Sheet 1 Calculated Center: {bg_center1}")
+print(f"Sheet 2 Calculated Center: {bg_center2}")
+print(f"Sheet 3 Calculated Center: {bg_center3}\n")
+
+# =====================================================================
+# 3. PLOTTING
+# =====================================================================
+plt.figure(figsize=(8, 7))
+
+e1_x, e1_y = generate_ellipse_xy(bg_center1, fit_a1, fit_b1, fit_angle1)
+e2_x, e2_y = generate_ellipse_xy(bg_center2, fit_a2, fit_b2, fit_angle2)
+e3_x, e3_y = generate_ellipse_xy(bg_center3, fit_a3, fit_b3, fit_angle3)
+
+# Plot Ellipse 1
+plt.scatter(df1['ellipse1_x'], df1['ellipse1_y'], color='darkred', alpha=0.6)
+plt.plot(e1_x, e1_y, color='red', linewidth=2)
+plt.scatter(bg_center1[0], bg_center1[1], color='red', marker='+', s=150, zorder=5)
+
+# Plot Ellipse 2
+plt.scatter(df2['ellipse2_x'], df2['ellipse2_y'], color='darkblue', alpha=0.6)
+plt.plot(e2_x, e2_y, color='blue', linewidth=2)
+plt.scatter(bg_center2[0], bg_center2[1], color='blue', marker='+', s=150, zorder=5)
+
+# Plot Ellipse 3
+plt.scatter(df3['ellipse3_x'], df3['ellipse3_y'], color='darkgreen', alpha=0.6)
+plt.plot(e3_x, e3_y, color='green', linewidth=2)
+plt.scatter(bg_center3[0], bg_center3[1], color='green', marker='+', s=150, zorder=5)
+
+plt.xlabel("u' Coordinate")
+plt.ylabel("v' Coordinate")
+plt.title('KB')
+plt.grid(True, linestyle='--', alpha=0.5)
+
+plt.xlim(0.00, 0.45)
+plt.ylim(0.00, 0.60)
+
+plt.show()
+
+#edit
