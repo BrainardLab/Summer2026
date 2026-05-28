@@ -98,12 +98,10 @@ plt.scatter(bg_center3[0], bg_center3[1], color='green', marker='+', s=150, zord
 
 plt.xlabel("u' Coordinate")
 plt.ylabel("v' Coordinate")
-plt.title('KB')
+plt.title('MC')
 plt.grid(True, linestyle='--', alpha=0.5)
 
 plt.xlim(0.00, 0.45)
 plt.ylim(0.00, 0.60)
 
 plt.show()
-
-#edit
